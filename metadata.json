@@ -1,0 +1,5 @@
+{
+  "name": "ModeraFlow SaaS",
+  "description": "A modern SaaS dashboard for social media moderation using n8n and Supabase, featuring Facebook integration and AI-powered response simulation.",
+  "requestFramePermissions": []
+}
