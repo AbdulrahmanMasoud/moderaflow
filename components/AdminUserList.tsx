@@ -15,6 +15,7 @@ export const AdminUserList: React.FC = () => {
   // Modal States
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
   
   // Edit State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,10 +66,22 @@ export const AdminUserList: React.FC = () => {
 
   const handleInvite = async (e: React.FormEvent) => {
       e.preventDefault();
-      // Simulation of Invite
+      if (!inviteEmail) return;
+      
+      setInviteLoading(true);
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // In a real production environment with Supabase, you would use:
+      // await supabase.auth.admin.inviteUserByEmail(inviteEmail)
+      // *Note:* This requires a service_role key which is unsafe for the client side.
+      // Alternatively, call a Supabase Edge Function here.
+      
+      setInviteLoading(false);
       setShowInviteModal(false);
       setInviteEmail('');
-      addToast(`Invitation email sent to ${inviteEmail}`, 'success');
+      addToast(`Invitation sent to ${inviteEmail}. (Simulation: Email system not connected)`, 'success');
   };
 
   const startEdit = (user: Tenant) => {
@@ -338,9 +351,11 @@ export const AdminUserList: React.FC = () => {
                           </button>
                           <button 
                              type="submit" 
-                             className="flex-1 py-2.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-black"
+                             disabled={inviteLoading}
+                             className="flex-1 py-2.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-black flex justify-center items-center gap-2"
                           >
-                              Send Invitation
+                              {inviteLoading && <Loader2 className="animate-spin" size={16} />}
+                              {inviteLoading ? 'Sending...' : 'Send Invitation'}
                           </button>
                       </div>
                   </form>

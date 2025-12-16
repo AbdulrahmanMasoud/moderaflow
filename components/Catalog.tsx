@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Upload, Search, Edit2, Trash2, X, Save, FileSpreadsheet, Loader2, Package } from 'lucide-react';
+import { Plus, Upload, Search, Edit2, Trash2, X, Save, FileSpreadsheet, Loader2, Package, Download } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { Product } from '../types';
@@ -100,6 +100,18 @@ export const Catalog: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleDownloadSample = () => {
+    const csvContent = "name,description,sku,price,category\nSample T-Shirt,High quality cotton t-shirt,TS-001,19.99,Apparel\nWireless Headphones,Noise cancelling headphones,WH-500,149.99,Electronics";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'sample_products.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -107,7 +119,7 @@ export const Catalog: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target?.result as string;
-      // Simple CSV Parse (Assumes header: Name, Description, SKU, Price, Category)
+      // Simple CSV Parse (Assumes header: name, description, sku, price, category)
       const lines = text.split('\n');
       const newProducts = [];
       
@@ -116,7 +128,7 @@ export const Catalog: React.FC = () => {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Basic comma splitting
+        // Handle basic comma splitting (Not robust for quoted commas, but good for simple sample)
         const cols = line.split(',');
         if (cols.length >= 2) {
             newProducts.push({
@@ -138,6 +150,8 @@ export const Catalog: React.FC = () => {
               addToast(`Successfully imported ${newProducts.length} products.`, "success");
               fetchProducts();
           }
+      } else {
+          addToast("No valid products found in CSV. Check format.", "error");
       }
     };
     reader.readAsText(file);
@@ -157,7 +171,7 @@ export const Catalog: React.FC = () => {
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Product Catalog</h2>
           <p className="text-slate-500 mt-1">Manage your inventory for vector search grounding.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <input 
             type="file" 
             accept=".csv" 
@@ -165,6 +179,14 @@ export const Catalog: React.FC = () => {
             className="hidden" 
             onChange={handleCSVImport}
           />
+          <button 
+            onClick={handleDownloadSample}
+            className="bg-white border border-slate-300 text-slate-500 hover:text-blue-600 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors text-sm"
+            title="Download Sample CSV Format"
+          >
+            <Download size={16} />
+            Sample CSV
+          </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors"

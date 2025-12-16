@@ -59,8 +59,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
 
   if (isAdmin) {
     menuItems.push({ id: 'users', label: 'User Management', icon: Users });
-    menuItems.push({ id: 'settings', label: 'Settings', icon: Settings });
   }
+
+  // Settings available for all users (Profile management). 
+  // Internal tabs in Settings.tsx handle Admin-only sections.
+  menuItems.push({ id: 'settings', label: 'Settings', icon: Settings });
 
   const handleLogout = async () => {
       await signOut();
@@ -105,7 +108,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
 
       {/* Footer / User Profile */}
       <div className="p-4 border-t border-slate-200 bg-slate-50/50">
-        <div className="flex items-center gap-3 mb-4 px-2">
+        <div 
+            onClick={() => onNavigate('settings')}
+            className="flex items-center gap-3 mb-4 px-2 cursor-pointer hover:bg-slate-200/50 p-2 rounded-lg transition-colors group"
+            title="Go to Profile Settings"
+        >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex-shrink-0"></div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate" title={user?.email}>
@@ -115,6 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
                     {user?.email}
                 </p>
             </div>
+            <Settings size={14} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
         <button 
           onClick={handleLogout}
