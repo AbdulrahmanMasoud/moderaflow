@@ -6,6 +6,7 @@ import { ConnectFacebook } from './components/ConnectFacebook';
 import { Settings } from './components/Settings';
 import { AIChatSimulator } from './components/AIChatSimulator';
 import { Catalog } from './components/Catalog';
+import { AdminUserList } from './components/AdminUserList';
 import { AuthPage } from './components/AuthPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -76,6 +77,7 @@ const MainLayout: React.FC<{ activePage: string, setActivePage: (p: string) => v
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/catalog" element={<Catalog />} />
+                <Route path="/users" element={<AdminUserList />} />
                 <Route path="/connect" element={<ConnectFacebook />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/simulation" element={<AIChatSimulator />} />

@@ -29,7 +29,7 @@ export const AuthPage: React.FC = () => {
           options: {
             data: {
                 org_name: orgName,
-                role: 'admin' // Default first user to admin
+                role: 'user' // Default to 'user', only manually set admins can access Admin Panel
             }
           }
         });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LayoutDashboard, Facebook, Settings, Activity, Zap, LogOut, Command, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, Facebook, Settings, Activity, Zap, LogOut, Command, ShoppingBag, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
 
@@ -12,7 +12,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
   const { user, signOut } = useAuth();
   const [orgName, setOrgName] = useState(user?.user_metadata?.org_name || 'Loading...');
   
-  // Default to 'user' if role is missing, but our auth flow sets 'admin' for new signups
+  // Check metadata for role
   const userRole = user?.user_metadata?.role || 'user'; 
   const isAdmin = userRole === 'admin';
 
@@ -24,11 +24,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
                 if (data?.org_name) {
                     setOrgName(data.org_name);
                 } else {
-                    // Fallback to metadata if table fetch fails or not set up
                     setOrgName(user.user_metadata?.org_name || 'Personal');
                 }
             } catch (error) {
-                // Fallback on error
                 setOrgName(user.user_metadata?.org_name || 'Personal');
             }
         };
@@ -45,12 +43,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
   ];
 
   if (isAdmin) {
+    menuItems.push({ id: 'users', label: 'User Management', icon: Users });
     menuItems.push({ id: 'settings', label: 'Settings', icon: Settings });
   }
 
   const handleLogout = async () => {
       await signOut();
-      // Auth wrapper in App.tsx will handle redirect
   };
 
   return (
@@ -66,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
           </h1>
         </div>
         <p className="text-xs text-slate-500 pl-10 truncate" title={`Workspace: ${orgName}`}>Workspace: {orgName}</p>
-        <span className="ml-10 text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+        <span className={`ml-10 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
             {userRole}
         </span>
       </div>
