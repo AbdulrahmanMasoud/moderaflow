@@ -63,5 +63,7 @@ export interface Tenant {
   id: string;
   org_name: string;
   plan: string;
+  role: 'admin' | 'user';
+  email: string;
   created_at: string;
 }

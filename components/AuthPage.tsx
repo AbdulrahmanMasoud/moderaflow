@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Command, Mail, Lock, Loader2, ArrowRight, Building2 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 export const AuthPage: React.FC = () => {
+  const { addToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [orgName, setOrgName] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     try {
       if (isSignUp) {
@@ -29,16 +29,16 @@ export const AuthPage: React.FC = () => {
           options: {
             data: {
                 org_name: orgName,
-                role: 'user' // Default to 'user', only manually set admins can access Admin Panel
+                role: 'user' // Default to 'user'
             }
           }
         });
         if (error) throw error;
         
         if (data.session) {
-           // Auto-login successful
+           addToast("Welcome! Account created successfully.", 'success');
         } else {
-           setMessage('Check your email for the confirmation link.');
+           addToast("Check your email for the confirmation link.", 'info');
         }
 
       } else {
@@ -47,9 +47,11 @@ export const AuthPage: React.FC = () => {
           password,
         });
         if (error) throw error;
+        addToast("Signed in successfully", 'success');
       }
     } catch (err: any) {
       setError(err.message);
+      addToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -88,7 +90,7 @@ export const AuthPage: React.FC = () => {
                     required={isSignUp}
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                     placeholder="Acme Corp"
                     />
                 </div>
@@ -104,7 +106,7 @@ export const AuthPage: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   placeholder="name@company.com"
                 />
               </div>
@@ -119,7 +121,7 @@ export const AuthPage: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   placeholder="••••••••"
                 />
               </div>
@@ -128,12 +130,6 @@ export const AuthPage: React.FC = () => {
             {error && (
               <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
                 {error}
-              </div>
-            )}
-
-            {message && (
-              <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-100">
-                {message}
               </div>
             )}
 
@@ -157,7 +153,6 @@ export const AuthPage: React.FC = () => {
             onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError(null);
-                setMessage(null);
             }}
             className="text-sm text-slate-600 hover:text-blue-600 font-medium transition-colors"
           >

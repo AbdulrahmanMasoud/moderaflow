@@ -3,9 +3,11 @@ import { Plus, Upload, Search, Edit2, Trash2, X, Save, FileSpreadsheet, Loader2,
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { Product } from '../types';
+import { useToast } from '../context/ToastContext';
 
 export const Catalog: React.FC = () => {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +38,7 @@ export const Catalog: React.FC = () => {
       .order('created_at', { ascending: false });
     
     if (data) setProducts(data);
+    if (error) addToast("Failed to fetch products", "error");
     setLoading(false);
   };
 
@@ -55,8 +58,10 @@ export const Catalog: React.FC = () => {
 
       if (editingProduct?.id) {
         await supabase.from('products').update(productData).eq('id', editingProduct.id);
+        addToast("Product updated successfully", "success");
       } else {
         await supabase.from('products').insert(productData);
+        addToast("Product added successfully", "success");
       }
       
       setIsModalOpen(false);
@@ -64,14 +69,19 @@ export const Catalog: React.FC = () => {
       resetForm();
     } catch (error) {
       console.error(error);
-      alert("Failed to save product");
+      addToast("Failed to save product", "error");
     }
   };
 
   const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      await supabase.from('products').delete().eq('id', id);
-      fetchProducts();
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if(error) {
+          addToast("Delete failed", "error");
+      } else {
+          addToast("Product deleted", "success");
+          fetchProducts();
+      }
     }
   };
 
@@ -106,7 +116,7 @@ export const Catalog: React.FC = () => {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Basic comma splitting (NOTE: Does not handle commas inside quotes)
+        // Basic comma splitting
         const cols = line.split(',');
         if (cols.length >= 2) {
             newProducts.push({
@@ -123,9 +133,9 @@ export const Catalog: React.FC = () => {
       if (newProducts.length > 0) {
           const { error } = await supabase.from('products').insert(newProducts);
           if (error) {
-              alert("Error importing CSV: " + error.message);
+              addToast("Error importing CSV: " + error.message, "error");
           } else {
-              alert(`Successfully imported ${newProducts.length} products.`);
+              addToast(`Successfully imported ${newProducts.length} products.`, "success");
               fetchProducts();
           }
       }
@@ -180,7 +190,7 @@ export const Catalog: React.FC = () => {
           placeholder="Search by name or SKU..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
         />
       </div>
 
@@ -268,7 +278,7 @@ export const Catalog: React.FC = () => {
                   type="text" 
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
                 />
               </div>
               
@@ -279,7 +289,7 @@ export const Catalog: React.FC = () => {
                     type="text" 
                     value={formData.sku}
                     onChange={e => setFormData({...formData, sku: e.target.value})}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
                     />
                 </div>
                 <div>
@@ -289,7 +299,7 @@ export const Catalog: React.FC = () => {
                     step="0.01"
                     value={formData.price}
                     onChange={e => setFormData({...formData, price: Number(e.target.value)})}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
                     />
                 </div>
               </div>
@@ -300,7 +310,7 @@ export const Catalog: React.FC = () => {
                   type="text" 
                   value={formData.category}
                   onChange={e => setFormData({...formData, category: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
                   placeholder="e.g. Electronics"
                 />
               </div>
@@ -311,7 +321,7 @@ export const Catalog: React.FC = () => {
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   rows={3}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
                 ></textarea>
               </div>
 

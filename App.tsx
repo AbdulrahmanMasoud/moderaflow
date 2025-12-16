@@ -9,15 +9,18 @@ import { Catalog } from './components/Catalog';
 import { AdminUserList } from './components/AdminUserList';
 import { AuthPage } from './components/AuthPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <HashRouter>
-        <AppRoutes />
-      </HashRouter>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <HashRouter>
+          <AppRoutes />
+        </HashRouter>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 

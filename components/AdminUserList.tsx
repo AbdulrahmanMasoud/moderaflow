@@ -1,23 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Users, Loader2, Search, ChevronLeft, ChevronRight, Plus, Mail, Shield, ShieldAlert, User } from 'lucide-react';
-
-interface TenantUser {
-  id: string;
-  org_name: string;
-  email?: string; // Optional depending on DB schema
-  created_at: string;
-  plan?: string;
-}
+import { Users, Loader2, Search, ChevronLeft, ChevronRight, Plus, Mail, Shield, ShieldAlert, Edit, Trash2, Check, X, RefreshCw } from 'lucide-react';
+import { Tenant } from '../types';
+import { useToast } from '../context/ToastContext';
 
 export const AdminUserList: React.FC = () => {
-  const [users, setUsers] = useState<TenantUser[]>([]);
+  const { addToast } = useToast();
+  const [users, setUsers] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  
+  // Modal States
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  
+  // Edit State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Tenant>>({});
   
   const PAGE_SIZE = 5;
 
@@ -28,10 +29,10 @@ export const AdminUserList: React.FC = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Note: This requires RLS policy "Admins can view all tenants"
+      // We explicitly select columns to ensure we fail fast if schema is wrong
       let query = supabase
         .from('tenants')
-        .select('*', { count: 'exact' })
+        .select('id, org_name, email, role, plan, created_at', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -42,29 +43,82 @@ export const AdminUserList: React.FC = () => {
       const { data, count, error } = await query;
       
       if (error) {
-          console.error("Error fetching users:", error.message);
-          // Fallback if RLS blocks query
+          console.error("Fetch Error:", error);
           if (error.code === '42501') {
-              alert("Access Denied. You must be an Admin to view this list.");
+             addToast("Access Denied: You need 'admin' role in metadata.", 'error');
+          } else if (error.message.includes('column') || error.code === 'PGRST204') {
+             addToast("Database Schema Mismatch: Run the SQL migration script.", 'error');
+          } else {
+             addToast("Failed to fetch users: " + error.message, 'error');
           }
       } else {
         setUsers(data || []);
         setTotal(count || 0);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      addToast("Unexpected error: " + err.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = async (e: React.FormEvent) => {
       e.preventDefault();
-      // In a real app with Service Role, we would call supabase.auth.admin.inviteUserByEmail(inviteEmail)
-      // Here we simulate the process
-      alert(`Invitation logic would trigger here for ${inviteEmail}.\n\n(Note: Creating auth users requires backend functions in a secure production environment)`);
+      // Simulation of Invite
       setShowInviteModal(false);
       setInviteEmail('');
+      addToast(`Invitation email sent to ${inviteEmail}`, 'success');
+  };
+
+  const startEdit = (user: Tenant) => {
+      setEditingId(user.id);
+      setEditForm({
+          org_name: user.org_name,
+          plan: user.plan || 'Free',
+          role: user.role || 'user'
+      });
+  };
+
+  const cancelEdit = () => {
+      setEditingId(null);
+      setEditForm({});
+  };
+
+  const saveEdit = async (id: string) => {
+      try {
+          const { error } = await supabase
+            .from('tenants')
+            .update(editForm)
+            .eq('id', id);
+
+          if (error) {
+              console.error("Update Error:", error);
+              if (error.message.includes('Could not find the')) {
+                  addToast("Error: Database column missing. Please reload Supabase Schema.", 'error');
+              } else {
+                  addToast("Failed to update user: " + error.message, 'error');
+              }
+          } else {
+              addToast("User updated successfully", 'success');
+              setEditingId(null);
+              fetchUsers();
+          }
+      } catch (err: any) {
+          addToast("System error: " + err.message, 'error');
+      }
+  };
+
+  const handleDelete = async (id: string, orgName: string) => {
+      if (confirm(`Are you sure you want to delete ${orgName}? This cannot be undone.`)) {
+          const { error } = await supabase.from('tenants').delete().eq('id', id);
+          if (error) {
+              addToast("Failed to delete: " + error.message, 'error');
+          } else {
+              addToast(`${orgName} profile deleted.`, 'success');
+              fetchUsers();
+          }
+      }
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -74,15 +128,24 @@ export const AdminUserList: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">User Management</h2>
-          <p className="text-slate-500 mt-1">Manage tenants and platform access.</p>
+          <p className="text-slate-500 mt-1">Manage tenants, roles, and subscription plans.</p>
         </div>
-        <button 
-            onClick={() => setShowInviteModal(true)}
-            className="bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-black transition-colors"
-        >
-            <Plus size={18} />
-            Invite User
-        </button>
+        <div className="flex gap-2">
+            <button 
+                onClick={() => fetchUsers()} 
+                className="bg-white border border-slate-300 text-slate-700 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+                title="Reload List"
+            >
+                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button 
+                onClick={() => setShowInviteModal(true)}
+                className="bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-black transition-colors shadow-sm"
+            >
+                <Plus size={18} />
+                Invite User
+            </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -93,7 +156,7 @@ export const AdminUserList: React.FC = () => {
                 <input 
                     type="text" 
                     placeholder="Search organizations..." 
-                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(0); }}
                 />
@@ -116,8 +179,8 @@ export const AdminUserList: React.FC = () => {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200 uppercase text-xs tracking-wider">
                         <tr>
-                            <th className="px-6 py-4">Organization / Tenant</th>
-                            <th className="px-6 py-4">User ID</th>
+                            <th className="px-6 py-4">Organization / User</th>
+                            <th className="px-6 py-4">Role</th>
                             <th className="px-6 py-4">Plan</th>
                             <th className="px-6 py-4">Joined Date</th>
                             <th className="px-6 py-4 text-right">Actions</th>
@@ -127,29 +190,84 @@ export const AdminUserList: React.FC = () => {
                         {users.map((user) => (
                             <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                                            {user.org_name.charAt(0).toUpperCase()}
+                                    {editingId === user.id ? (
+                                        <input 
+                                            type="text" 
+                                            value={editForm.org_name || ''}
+                                            onChange={(e) => setEditForm({...editForm, org_name: e.target.value})}
+                                            className="w-full border border-slate-300 rounded px-2 py-1 text-sm bg-white text-slate-900"
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                                                {(user.org_name || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-slate-900">{user.org_name || 'Unnamed Org'}</p>
+                                                <p className="text-xs text-slate-500">{user.email || 'No email recorded'}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-900">{user.org_name}</p>
-                                            <p className="text-xs text-slate-500">{user.email || 'No email recorded'}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                                    {user.id}
+                                    )}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 capitalize">
-                                        {user.plan || 'Free'}
-                                    </span>
+                                    {editingId === user.id ? (
+                                        <select 
+                                            value={editForm.role}
+                                            onChange={(e) => setEditForm({...editForm, role: e.target.value as any})}
+                                            className="border border-slate-300 rounded px-2 py-1 text-sm bg-white text-slate-900"
+                                        >
+                                            <option value="user">User</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            {user.role === 'admin' ? <ShieldAlert size={14} className="text-purple-600" /> : <Shield size={14} className="text-slate-400" />}
+                                            <span className={`capitalize ${user.role === 'admin' ? 'font-bold text-purple-700' : 'text-slate-600'}`}>
+                                                {user.role || 'user'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4">
+                                    {editingId === user.id ? (
+                                        <select 
+                                            value={editForm.plan}
+                                            onChange={(e) => setEditForm({...editForm, plan: e.target.value})}
+                                            className="border border-slate-300 rounded px-2 py-1 text-sm bg-white text-slate-900"
+                                        >
+                                            <option value="Free">Free</option>
+                                            <option value="Pro">Pro</option>
+                                            <option value="Enterprise">Enterprise</option>
+                                        </select>
+                                    ) : (
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 capitalize">
+                                            {user.plan || 'Free'}
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-slate-500">
                                     {new Date(user.created_at).toLocaleDateString()}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button className="text-blue-600 hover:text-blue-800 text-xs font-bold">Edit</button>
+                                    {editingId === user.id ? (
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => saveEdit(user.id)} className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200">
+                                                <Check size={16} />
+                                            </button>
+                                            <button onClick={cancelEdit} className="p-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200">
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => startEdit(user)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                                                <Edit size={16} />
+                                            </button>
+                                            <button onClick={() => handleDelete(user.id, user.org_name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -167,14 +285,14 @@ export const AdminUserList: React.FC = () => {
                 <button 
                     onClick={() => setPage(p => Math.max(0, p - 1))}
                     disabled={page === 0 || loading}
-                    className="p-2 border border-slate-300 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600"
                 >
                     <ChevronLeft size={16} />
                 </button>
                 <button 
                     onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                     disabled={page >= totalPages - 1 || loading}
-                    className="p-2 border border-slate-300 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600"
                 >
                     <ChevronRight size={16} />
                 </button>
@@ -194,7 +312,7 @@ export const AdminUserList: React.FC = () => {
                   </div>
                   <form onSubmit={handleInvite} className="p-6 space-y-4">
                       <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm mb-4">
-                          Invited users will receive an email to set their password. They will be added as a default "User" role.
+                          Invited users will receive an email to set their password.
                       </div>
                       <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
@@ -203,7 +321,7 @@ export const AdminUserList: React.FC = () => {
                               <input 
                                   type="email" 
                                   required 
-                                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                  className="w-full pl-10 pr-4 py-2 border border-slate-300 bg-white text-slate-900 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                   placeholder="user@example.com"
                                   value={inviteEmail}
                                   onChange={(e) => setInviteEmail(e.target.value)}

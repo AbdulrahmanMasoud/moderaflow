@@ -3,12 +3,13 @@ import { Save, Loader2, Check, Building2, CreditCard } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { AppSettings, Tenant } from '../types';
+import { useToast } from '../context/ToastContext';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
   
   // Tenant State
   const [tenant, setTenant] = useState<Tenant | null>(null);
@@ -55,6 +56,7 @@ export const Settings: React.FC = () => {
         }
       } catch (err) {
         console.error("Error loading data", err);
+        addToast("Error loading profile data", "error");
       } finally {
         setLoading(false);
       }
@@ -66,7 +68,6 @@ export const Settings: React.FC = () => {
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    setSuccess(false);
 
     try {
       // 1. Save App Settings
@@ -88,11 +89,10 @@ export const Settings: React.FC = () => {
           if (tenantError) throw tenantError;
       }
 
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
+      addToast("Settings saved successfully", "success");
+    } catch (err: any) {
       console.error("Error saving settings", err);
-      alert("Failed to save settings");
+      addToast(err.message || "Failed to save settings", "error");
     } finally {
       setSaving(false);
     }
@@ -113,11 +113,6 @@ export const Settings: React.FC = () => {
                 <h2 className="text-2xl font-bold text-slate-800">Settings</h2>
                 <p className="text-slate-500">Manage your organization profile and integrations.</p>
             </div>
-            {success && (
-                <div className="bg-green-100 text-green-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold animate-fade-in">
-                    <Check size={16} /> Saved Successfully
-                </div>
-            )}
         </div>
 
         {/* Tenant Profile */}
@@ -139,7 +134,7 @@ export const Settings: React.FC = () => {
                         type="text" 
                         value={tenant?.org_name || ''}
                         onChange={(e) => setTenant(prev => prev ? ({ ...prev, org_name: e.target.value }) : null)}
-                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-900"
                     />
                 </div>
                 <div>
@@ -164,7 +159,7 @@ export const Settings: React.FC = () => {
                     placeholder="1234567890"
                     value={settings.facebook_app_id}
                     onChange={(e) => handleChange('facebook_app_id', e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white text-slate-900"
                 />
                 <p className="text-xs text-slate-400 mt-1">This ID will be automatically used in the Integrations page.</p>
             </div>
@@ -183,7 +178,7 @@ export const Settings: React.FC = () => {
                         value={settings.n8n_webhook_url}
                         onChange={(e) => handleChange('n8n_webhook_url', e.target.value)}
                         placeholder="https://n8n.yourdomain.com/webhook/facebook-inbound"
-                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white text-slate-900"
                     />
                 </div>
                 <div>
@@ -193,7 +188,7 @@ export const Settings: React.FC = () => {
                         value={settings.n8n_webhook_secret}
                         onChange={(e) => handleChange('n8n_webhook_secret', e.target.value)}
                         placeholder="••••••••••••••••"
-                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white text-slate-900"
                     />
                 </div>
             </div>
@@ -213,7 +208,7 @@ export const Settings: React.FC = () => {
                         type="text" 
                         value={settings.supabase_url}
                         onChange={(e) => handleChange('supabase_url', e.target.value)}
-                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-900"
                         placeholder="https://xyz.supabase.co"
                     />
                 </div>
@@ -223,7 +218,7 @@ export const Settings: React.FC = () => {
                         type="password" 
                         value={settings.supabase_key}
                         onChange={(e) => handleChange('supabase_key', e.target.value)}
-                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white text-slate-900"
                         placeholder="ey..."
                     />
                 </div>
