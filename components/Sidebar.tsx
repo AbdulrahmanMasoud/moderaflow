@@ -11,26 +11,41 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
   const { user, signOut } = useAuth();
   const [orgName, setOrgName] = useState(user?.user_metadata?.org_name || 'Loading...');
-  
-  // Check metadata for role
-  const userRole = user?.user_metadata?.role || 'user'; 
+  const [userRole, setUserRole] = useState<string>(user?.user_metadata?.role || 'user');
+
+  // Computed property for UI
   const isAdmin = userRole === 'admin';
 
   useEffect(() => {
     if (user) {
-        const fetchOrgName = async () => {
+        const fetchTenantData = async () => {
             try {
-                const { data } = await supabase.from('tenants').select('org_name').eq('id', user.id).single();
-                if (data?.org_name) {
+                // Fetch both org_name and role from the Source of Truth (Database)
+                // We use maybeSingle() to handle the case where the tenant record is missing without throwing an error
+                const { data } = await supabase
+                    .from('tenants')
+                    .select('org_name, role')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                if (data) {
                     setOrgName(data.org_name);
+                    // If DB has a role, use it. Otherwise fall back to metadata, then 'user'.
+                    if (data.role) {
+                        setUserRole(data.role);
+                    }
                 } else {
+                    // Fallback for visual state if tenant is missing (AuthContext will heal this shortly)
                     setOrgName(user.user_metadata?.org_name || 'Personal');
+                    // CRITICAL: If no tenant exists, force 'user' role to prevent ghost admins
+                    setUserRole('user');
                 }
             } catch (error) {
+                console.error("Sidebar data fetch error:", error);
                 setOrgName(user.user_metadata?.org_name || 'Personal');
             }
         };
-        fetchOrgName();
+        fetchTenantData();
     }
   }, [user]);
 

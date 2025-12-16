@@ -25,42 +25,69 @@ export const ConnectFacebook: React.FC = () => {
   const [manualMode, setManualMode] = useState(false);
   const [manualConfig, setManualConfig] = useState({ name: '', id: '', token: '' });
 
+  // Role Management
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
+
   // Check if we are in a secure context (HTTPS or localhost)
   const isSecureContext = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-  // 1. Check for existing connection on mount
+  // 1. Check Role, Existing connection, AND App Settings on mount
   useEffect(() => {
     if (!user) return;
 
-    const fetchConnection = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('connected_pages')
-          .select('page_name, page_id, created_at')
-          .eq('user_id', user.id)
-          .maybeSingle(); // Use maybeSingle to avoid error on 0 rows
+    const init = async () => {
+        // Check Role
+        const { data: roleData } = await supabase
+            .from('tenants')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+        
+        setIsAdmin(roleData?.role === 'admin');
+        setCheckingRole(false);
 
-        if (error) throw error;
-        if (data) {
-          setConnectedPage(data);
+        // Check Connection
+        try {
+            const { data, error } = await supabase
+            .from('connected_pages')
+            .select('page_name, page_id, created_at')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+            if (error) throw error;
+            if (data) {
+                setConnectedPage(data);
+            }
+        } catch (err: any) {
+            console.error("Supabase fetch error:", err);
         }
-      } catch (err: any) {
-        console.error("Supabase fetch error:", err);
-        // Don't show UI error for network issues on load, just log it. 
-        // Unless it's a critical auth failure.
-        if (err.message === 'Failed to fetch') {
-             console.warn("Network error connecting to Supabase. Check your connection or ad-blockers.");
+
+        // Check App Settings for App ID (Auto-Init)
+        try {
+            const { data: settings } = await supabase
+                .from('app_settings')
+                .select('facebook_app_id')
+                .eq('user_id', user.id)
+                .maybeSingle();
+            
+            if (settings?.facebook_app_id) {
+                setAppId(settings.facebook_app_id);
+                initFacebook(settings.facebook_app_id);
+            }
+        } catch (err) {
+            console.error("Settings fetch error:", err);
         }
-      }
     };
 
-    fetchConnection();
+    init();
   }, [user]);
 
   // 2. Initialize Facebook SDK
   const initFacebook = (submittedAppId: string) => {
     if (!isSecureContext) {
-        setError("Facebook Login requires HTTPS. Switching to manual input mode recommended.");
+        // Don't error immediately on auto-init attempts, just log
+        console.warn("Facebook Login requires HTTPS.");
         return;
     }
     
@@ -91,9 +118,19 @@ export const ConnectFacebook: React.FC = () => {
      }(document, 'script', 'facebook-jssdk'));
   };
 
-  const handleAppIdSubmit = (e: React.FormEvent) => {
+  const handleAppIdSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if(appId) initFacebook(appId);
+      if(appId) {
+          initFacebook(appId);
+          // Save to DB so it persists for this user/tenant
+          if (user) {
+              await supabase.from('app_settings').upsert({
+                  user_id: user.id,
+                  facebook_app_id: appId,
+                  updated_at: new Date().toISOString()
+              }, { onConflict: 'user_id' });
+          }
+      }
   };
 
   // 3. Login Flow
@@ -206,7 +243,18 @@ export const ConnectFacebook: React.FC = () => {
     }
   };
 
-  // Initialize SDK component
+  if (checkingRole) {
+      return (
+          <div className="flex justify-center items-center h-64">
+              <Loader2 className="animate-spin text-slate-400" size={32} />
+          </div>
+      );
+  }
+
+  // Render Logic:
+  // If SDK is NOT loaded and no page connected and not manual mode:
+  // We need to show the configuration screen (App ID input).
+  // But strictly restrict App ID input to Admin.
   if (!sdkLoaded && !connectedPage && !manualMode) {
       return (
         <div className="max-w-2xl mx-auto mt-10 p-8 bg-white rounded-xl shadow-sm border border-slate-200 text-center animate-fade-in">
@@ -215,37 +263,51 @@ export const ConnectFacebook: React.FC = () => {
                     <Facebook size={32} />
                 </div>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Configure Facebook App</h2>
-            <p className="text-slate-500 mb-6">Enter your Facebook App ID to initialize the connection SDK.</p>
             
-            {!isSecureContext && (
-                <div className="mb-6 p-4 bg-yellow-50 text-yellow-800 text-sm rounded-lg flex items-start gap-3 text-left border border-yellow-200">
-                    <AlertTriangle className="flex-shrink-0 mt-0.5" size={16} />
-                    <div>
-                        <span className="font-bold">HTTP Connection Detected:</span> Facebook Login requires HTTPS. 
-                        Please enable SSL or use Manual Configuration mode.
-                    </div>
-                </div>
-            )}
+            {isAdmin ? (
+                <>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Configure Facebook App</h2>
+                    <p className="text-slate-500 mb-6">Enter your Facebook App ID to initialize the connection SDK.</p>
+                    
+                    {!isSecureContext && (
+                        <div className="mb-6 p-4 bg-yellow-50 text-yellow-800 text-sm rounded-lg flex items-start gap-3 text-left border border-yellow-200">
+                            <AlertTriangle className="flex-shrink-0 mt-0.5" size={16} />
+                            <div>
+                                <span className="font-bold">HTTP Connection Detected:</span> Facebook Login requires HTTPS. 
+                                Please enable SSL or use Manual Configuration mode.
+                            </div>
+                        </div>
+                    )}
 
-            <form onSubmit={handleAppIdSubmit} className="max-w-xs mx-auto space-y-4">
-                <input 
-                    type="text" 
-                    placeholder="App ID (e.g. 123456789)"
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 text-center focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50 disabled:bg-slate-100"
-                    value={appId}
-                    onChange={(e) => setAppId(e.target.value)}
-                    required
-                    disabled={!isSecureContext}
-                />
-                <button 
-                    type="submit" 
-                    className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!isSecureContext}
-                >
-                    Initialize SDK
-                </button>
-            </form>
+                    <form onSubmit={handleAppIdSubmit} className="max-w-xs mx-auto space-y-4">
+                        <input 
+                            type="text" 
+                            placeholder="App ID (e.g. 123456789)"
+                            className="w-full border border-slate-300 rounded-lg px-4 py-2 text-center focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50 disabled:bg-slate-100"
+                            value={appId}
+                            onChange={(e) => setAppId(e.target.value)}
+                            required
+                            disabled={!isSecureContext}
+                        />
+                        <button 
+                            type="submit" 
+                            className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!isSecureContext}
+                        >
+                            Initialize SDK
+                        </button>
+                    </form>
+                </>
+            ) : (
+                <>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Facebook App Not Configured</h2>
+                    <p className="text-slate-500 mb-6">
+                        The Facebook App ID has not been configured by the administrator yet.
+                        <br />
+                        You can still connect manually if you have a Page Access Token.
+                    </p>
+                </>
+            )}
             
             <div className="mt-8 pt-6 border-t border-slate-100">
                 <button 
@@ -260,6 +322,7 @@ export const ConnectFacebook: React.FC = () => {
       );
   }
 
+  // Main UI (Accessible to everyone once initialized or if page connected)
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
       <div className="text-center">
@@ -454,6 +517,7 @@ export const ConnectFacebook: React.FC = () => {
                 </div>
               </div>
 
+              {/* Allow ALL users to disconnect their own page */}
               <div className="flex justify-end pt-4 border-t border-slate-100">
                  <button 
                     onClick={handleDisconnect}
